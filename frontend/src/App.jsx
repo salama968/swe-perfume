@@ -11,12 +11,14 @@ import ProductDetailPage from './pages/ProductDetailPage';
 import RegisterPage from './pages/RegisterPage';
 import VendorApplyPage from './pages/VendorApplyPage';
 import VendorDashboardPage from './pages/VendorDashboardPage';
+import PresentationPage from './pages/PresentationPage';
 
 const App = () => (
   <>
     <ScrollToTop />
     <Routes>
       <Route path="/" element={<HomePage />} />
+      <Route path="/presentation" element={<PresentationPage />} />
       <Route path="/product/:id" element={<ProductDetailPage />} />
       <Route path="/checkout" element={<CheckoutPage />} />
       <Route path="/login" element={<LoginPage />} />
