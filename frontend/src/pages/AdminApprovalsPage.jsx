@@ -17,6 +17,7 @@ const AdminApprovalsPage = () => {
   const [status, setStatus] = useState('pending');
   const [loading, setLoading] = useState(true);
   const [adminMessage, setAdminMessage] = useState('');
+  const [navOpen, setNavOpen] = useState(false);
   const [counts, setCounts] = useState({
     pending: 0,
     approved: 0,
@@ -156,9 +157,13 @@ const AdminApprovalsPage = () => {
 
   return (
     <div className="flex bg-surface min-h-screen">
-      <SideNavBar active="admin" />
-      <main className="ml-64 flex-1 p-margin-edge">
-        <header className="mb-stack-lg flex justify-between items-end border-b border-outline-variant pb-6">
+      <SideNavBar
+        active="admin"
+        isOpen={navOpen}
+        onClose={() => setNavOpen(false)}
+      />
+      <main className="ml-0 lg:ml-64 flex-1 p-margin-edge">
+        <header className="mb-stack-lg flex flex-col sm:flex-row justify-between items-start sm:items-end border-b border-outline-variant pb-6 gap-4">
           <div>
             <p className="font-label-caps text-label-caps text-on-surface-variant uppercase mb-2">
               Admin Portal
@@ -167,6 +172,13 @@ const AdminApprovalsPage = () => {
               Vendor Approvals
             </h2>
           </div>
+          <button
+            type="button"
+            onClick={() => setNavOpen(true)}
+            className="lg:hidden border border-outline px-4 py-3 font-label-caps text-label-caps uppercase tracking-widest"
+          >
+            Menu
+          </button>
         </header>
         <section className="grid grid-cols-1 md:grid-cols-4 gap-gutter mb-stack-lg">
           <div className="bg-surface-container-lowest border border-outline-variant rounded-lg p-6 flex flex-col justify-between h-32">

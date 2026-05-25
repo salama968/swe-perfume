@@ -50,6 +50,9 @@ const OrdersPage = () => {
                   Status
                 </th>
                 <th className="py-4 px-6 font-label-caps text-label-caps text-on-surface-variant uppercase">
+                  Sub-orders
+                </th>
+                <th className="py-4 px-6 font-label-caps text-label-caps text-on-surface-variant uppercase">
                   Items
                 </th>
                 <th className="py-4 px-6 font-label-caps text-label-caps text-on-surface-variant uppercase">
@@ -60,13 +63,13 @@ const OrdersPage = () => {
             <tbody className="divide-y divide-outline-variant">
               {loading ? (
                 <tr>
-                  <td className="py-6 px-6 text-on-surface-variant" colSpan={4}>
+                  <td className="py-6 px-6 text-on-surface-variant" colSpan={6}>
                     Loading orders...
                   </td>
                 </tr>
               ) : error ? (
                 <tr>
-                  <td className="py-6 px-6 text-error" colSpan={4}>
+                  <td className="py-6 px-6 text-error" colSpan={6}>
                     {error}
                   </td>
                 </tr>
@@ -74,6 +77,9 @@ const OrdersPage = () => {
                 orders.map((order) => {
                   const orderId = order.id || order._id;
                   const placedAt = order.placedAt || order.createdAt;
+                  const subOrders = Array.isArray(order.subOrders)
+                    ? order.subOrders
+                    : [];
                   const formattedDate = placedAt
                     ? new Date(placedAt).toLocaleDateString('en-US', {
                         year: 'numeric',
@@ -82,6 +88,9 @@ const OrdersPage = () => {
                       })
                     : '—';
                   const total = Number(order.totalAmount || 0).toFixed(2);
+                  const subOrderSummary = subOrders.length
+                    ? subOrders.map((sub) => sub.status || 'pending')
+                    : [];
                   return (
                     <tr key={orderId}>
                       <td className="py-4 px-6 font-mono text-sm text-on-surface-variant">
@@ -95,6 +104,24 @@ const OrdersPage = () => {
                           {order.status || 'pending'}
                         </span>
                       </td>
+                      <td className="py-4 px-6">
+                        <div className="flex flex-wrap gap-2">
+                          {subOrderSummary.length ? (
+                            subOrderSummary.map((status, index) => (
+                              <span
+                                key={`${orderId}-sub-${index}`}
+                                className="px-2 py-1 rounded-full bg-surface-container-low text-[10px] uppercase text-on-surface-variant"
+                              >
+                                {status}
+                              </span>
+                            ))
+                          ) : (
+                            <span className="text-xs text-on-surface-variant">
+                              —
+                            </span>
+                          )}
+                        </div>
+                      </td>
                       <td className="py-4 px-6 text-on-surface-variant">
                         {order.items?.length || 0}
                       </td>
@@ -106,7 +133,7 @@ const OrdersPage = () => {
                 })
               ) : (
                 <tr>
-                  <td className="py-6 px-6 text-on-surface-variant" colSpan={4}>
+                  <td className="py-6 px-6 text-on-surface-variant" colSpan={6}>
                     You have no orders yet.
                   </td>
                 </tr>

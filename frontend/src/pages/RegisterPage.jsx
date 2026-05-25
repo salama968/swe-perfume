@@ -1,9 +1,11 @@
 import { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import useAuth from '../hooks/useAuth';
+import useCart from '../hooks/useCart';
 
 const RegisterPage = () => {
   const { register } = useAuth();
+  const { mergeGuestCart } = useCart();
   const navigate = useNavigate();
   const [form, setForm] = useState({ name: '', email: '', password: '' });
   const [error, setError] = useState('');
@@ -21,6 +23,7 @@ const RegisterPage = () => {
 
     try {
       await register(form);
+      await mergeGuestCart();
       navigate('/');
     } catch (err) {
       setError('Unable to register. Please check your details.');
@@ -31,8 +34,14 @@ const RegisterPage = () => {
 
   return (
     <div className="min-h-screen bg-background flex items-center justify-center px-6">
-      <div className="w-full max-w-md bg-surface-container-lowest border border-outline-variant p-8">
-        <h1 className="font-headline-lg text-on-surface mb-2">
+      <div className="w-full max-w-md bg-surface-container-lowest border border-outline-variant p-8 relative">
+        <Link
+          className="text-xs uppercase tracking-widest text-on-surface-variant hover:text-on-surface absolute top-6 right-6"
+          to="/"
+        >
+          Back to store
+        </Link>
+        <h1 className="font-headline-lg text-on-surface mt-5 mb-2">
           Join L'Essence
         </h1>
         <p className="text-on-surface-variant mb-6">

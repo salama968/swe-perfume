@@ -56,7 +56,7 @@ router.post(
           }),
         )
         .min(1)
-        .required(),
+        .optional(),
       shippingAddress: Joi.object({
         street: Joi.string().allow('').optional(),
         city: Joi.string().allow('').optional(),

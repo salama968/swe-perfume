@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { createOrder } from '../api/orders';
 import Footer from '../components/Footer';
@@ -8,7 +8,8 @@ import useCart from '../hooks/useCart';
 
 const CheckoutPage = () => {
   const { user } = useAuth();
-  const { items, subtotal, clear, updateQuantity, removeItem } = useCart();
+  const { items, subtotal, clear, mergeGuestCart, updateQuantity, removeItem } =
+    useCart();
   const navigate = useNavigate();
   const [form, setForm] = useState({
     fullName: '',
@@ -27,13 +28,6 @@ const CheckoutPage = () => {
     return numberValue.toFixed(2);
   };
 
-  const vendorConflict = useMemo(() => {
-    const vendorIds = items
-      .map((item) => item.vendorId)
-      .filter((value) => value);
-    return new Set(vendorIds).size > 1;
-  }, [items]);
-
   const handleChange = (event) => {
     const { name, value } = event.target;
     setForm((prev) => ({ ...prev, [name]: value }));
@@ -49,11 +43,6 @@ const CheckoutPage = () => {
       return;
     }
 
-    if (vendorConflict) {
-      setError('All items must be from the same vendor.');
-      return;
-    }
-
     if (!items.length) {
       setError('Your bag is empty.');
       return;
@@ -61,11 +50,8 @@ const CheckoutPage = () => {
 
     setLoading(true);
     try {
+      await mergeGuestCart();
       await createOrder({
-        items: items.map((item) => ({
-          productId: item.productId,
-          quantity: item.quantity,
-        })),
         shippingAddress: {
           street: form.street,
           city: form.city,
@@ -73,7 +59,7 @@ const CheckoutPage = () => {
           country: form.country,
         },
       });
-      clear();
+      await clear();
       setSuccess('Order placed. You will receive a confirmation shortly.');
     } catch (err) {
       setError('Unable to complete purchase. Please review your details.');

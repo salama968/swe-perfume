@@ -39,6 +39,8 @@ describe('Orders', () => {
 
     expect(res.status).toBe(201);
     expect(res.body.totalAmount).toBe(30);
-    expect(res.body.vendorId).toBe(vendor._id.toString());
+    expect(res.body.subOrders).toHaveLength(1);
+    expect(res.body.subOrders[0].vendorId).toBe(vendor._id.toString());
+    expect(res.body.subOrders[0].totalAmount).toBe(30);
   });
 });

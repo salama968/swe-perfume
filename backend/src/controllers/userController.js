@@ -1,7 +1,9 @@
 const VendorApplication = require('../models/VendorApplication');
 const Product = require('../models/Product');
 const Order = require('../models/Order');
+const Cart = require('../models/Cart');
 const User = require('../models/User');
+const { computeParentStatus } = require('../services/orderStatus');
 
 const applyForVendor = async (req, res, next) => {
   try {
@@ -29,8 +31,18 @@ const applyForVendor = async (req, res, next) => {
 
 const createOrder = async (req, res, next) => {
   try {
-    const { items, shippingAddress } = req.body;
-    const productIds = items.map((item) => item.productId);
+    const { items: bodyItems, shippingAddress } = req.body;
+    const cart = await Cart.findOne({ userId: req.user.id });
+    const sourceItems =
+      Array.isArray(bodyItems) && bodyItems.length
+        ? bodyItems
+        : cart?.items || [];
+
+    if (!sourceItems.length) {
+      return res.status(400).json({ error: 'Cart is empty' });
+    }
+
+    const productIds = sourceItems.map((item) => item.productId);
     const products = await Product.find({
       _id: { $in: productIds },
       isActive: true,
@@ -44,44 +56,58 @@ const createOrder = async (req, res, next) => {
       products.map((product) => [product._id.toString(), product]),
     );
 
-    const vendorId = products[0].vendorId.toString();
-    const orderItems = items.map((item) => {
-      const product = productMap.get(item.productId);
-      if (!product) {
-        throw new Error('Invalid product in order');
-      }
-      if (product.vendorId.toString() !== vendorId) {
-        throw new Error('All items must be from the same vendor');
-      }
-
-      return {
-        productId: product._id,
+    const grouped = sourceItems.reduce((acc, item) => {
+      const product = productMap.get(item.productId.toString());
+      if (!product) return acc;
+      const vendorKey = product.vendorId.toString();
+      if (!acc[vendorKey]) acc[vendorKey] = [];
+      acc[vendorKey].push({
+        product,
         quantity: item.quantity,
+      });
+      return acc;
+    }, {});
+
+    const subOrders = Object.entries(grouped).map(([vendorId, entries]) => {
+      const items = entries.map(({ product, quantity }) => ({
+        productId: product._id,
+        quantity,
         priceAtTime: product.price,
+      }));
+      const totalAmount = items.reduce(
+        (sum, item) => sum + item.quantity * item.priceAtTime,
+        0,
+      );
+      return {
+        vendorId,
+        items,
+        totalAmount,
+        status: 'pending',
       };
     });
 
-    const totalAmount = orderItems.reduce(
-      (sum, item) => sum + item.quantity * item.priceAtTime,
+    const totalAmount = subOrders.reduce(
+      (sum, subOrder) => sum + subOrder.totalAmount,
       0,
     );
 
     const order = await Order.create({
       customerId: req.user.id,
-      vendorId,
-      items: orderItems,
+      subOrders,
       totalAmount,
       shippingAddress,
+      status: computeParentStatus(subOrders),
     });
 
-    return res.status(201).json(order);
+    if (cart) {
+      cart.items = [];
+      await cart.save();
+    }
+
+    const responseOrder = order.toObject();
+    responseOrder.items = subOrders.flatMap((sub) => sub.items);
+    return res.status(201).json(responseOrder);
   } catch (err) {
-    if (err.message && err.message.includes('same vendor')) {
-      return res.status(400).json({ error: err.message });
-    }
-    if (err.message && err.message.includes('Invalid product')) {
-      return res.status(400).json({ error: 'Invalid products in order' });
-    }
     return next(err);
   }
 };
@@ -91,7 +117,14 @@ const listMyOrders = async (req, res, next) => {
     const orders = await Order.find({ customerId: req.user.id }).sort({
       placedAt: -1,
     });
-    return res.json({ data: orders });
+
+    const normalized = orders.map((order) => {
+      const mapped = order.toObject();
+      mapped.items = (mapped.subOrders || []).flatMap((sub) => sub.items);
+      return mapped;
+    });
+
+    return res.json({ data: normalized });
   } catch (err) {
     return next(err);
   }
@@ -133,14 +166,20 @@ const getOrderById = async (req, res, next) => {
     }
 
     const isOwner = order.customerId.toString() === req.user.id;
-    const isVendor = order.vendorId.toString() === req.user.id;
+    const isVendor = (order.subOrders || []).some(
+      (sub) => sub.vendorId.toString() === req.user.id,
+    );
     const isAdmin = req.user.role === 'admin';
 
     if (!isOwner && !isVendor && !isAdmin) {
       return res.status(403).json({ error: 'Forbidden' });
     }
 
-    return res.json({ data: order });
+    const responseOrder = order.toObject();
+    responseOrder.items = (responseOrder.subOrders || []).flatMap(
+      (sub) => sub.items,
+    );
+    return res.json({ data: responseOrder });
   } catch (err) {
     return next(err);
   }

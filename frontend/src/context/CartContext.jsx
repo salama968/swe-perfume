@@ -1,9 +1,19 @@
 import { createContext, useContext, useEffect, useMemo, useState } from 'react';
+import {
+  addCartItem,
+  clearCart,
+  fetchCart,
+  mergeCartItems,
+  removeCartItem,
+  updateCartItem,
+} from '../api/cart';
+import { getAuthToken } from '../api/client';
 import AuthContext from './AuthContext';
 
 const CartContext = createContext(null);
 
 const baseStorageKey = 'cart_items';
+const guestStorageKey = `${baseStorageKey}:guest`;
 
 const loadCart = (storageKey) => {
   try {
@@ -16,22 +26,41 @@ const loadCart = (storageKey) => {
 
 export const CartProvider = ({ children }) => {
   const { user } = useContext(AuthContext) || {};
-  const userKey = user?.id || user?._id || 'guest';
-  const storageKey = `${baseStorageKey}:${userKey}`;
-  const [items, setItems] = useState(() => loadCart(storageKey));
+  const hasAuth = Boolean(user?.id || user?._id);
+  const [items, setItems] = useState(() => loadCart(guestStorageKey));
 
   useEffect(() => {
-    setItems(loadCart(storageKey));
-  }, [storageKey]);
+    const load = async () => {
+      if (!hasAuth) {
+        setItems(loadCart(guestStorageKey));
+        return;
+      }
 
-  const persist = (nextItems) => {
+      try {
+        const data = await fetchCart();
+        setItems(Array.isArray(data?.items) ? data.items : []);
+      } catch (error) {
+        setItems([]);
+      }
+    };
+
+    load();
+  }, [hasAuth]);
+
+  const persistGuest = (nextItems) => {
     setItems(nextItems);
-    localStorage.setItem(storageKey, JSON.stringify(nextItems));
+    localStorage.setItem(guestStorageKey, JSON.stringify(nextItems));
   };
 
-  const addItem = (product, quantity = 1) => {
+  const addItem = async (product, quantity = 1) => {
     const productId = product.id || product._id || product.productId;
     if (!productId) return;
+    if (hasAuth) {
+      const data = await addCartItem({ productId, quantity });
+      setItems(Array.isArray(data?.items) ? data.items : []);
+      return;
+    }
+
     const existing = items.find((item) => item.productId === productId);
     if (existing) {
       const updated = items.map((item) =>
@@ -39,7 +68,7 @@ export const CartProvider = ({ children }) => {
           ? { ...item, quantity: item.quantity + quantity }
           : item,
       );
-      persist(updated);
+      persistGuest(updated);
       return;
     }
     const next = [
@@ -53,27 +82,65 @@ export const CartProvider = ({ children }) => {
         quantity,
       },
     ];
-    persist(next);
+    persistGuest(next);
   };
 
-  const updateQuantity = (productId, quantity) => {
+  const updateQuantity = async (productId, quantity) => {
     if (quantity < 1) {
-      removeItem(productId);
+      await removeItem(productId);
       return;
     }
+    if (hasAuth) {
+      const data = await updateCartItem(productId, { quantity });
+      setItems(Array.isArray(data?.items) ? data.items : []);
+      return;
+    }
+
     const updated = items.map((item) =>
       item.productId === productId ? { ...item, quantity } : item,
     );
-    persist(updated);
+    persistGuest(updated);
   };
 
-  const removeItem = (productId) => {
+  const removeItem = async (productId) => {
+    if (hasAuth) {
+      const data = await removeCartItem(productId);
+      setItems(Array.isArray(data?.items) ? data.items : []);
+      return;
+    }
+
     const updated = items.filter((item) => item.productId !== productId);
-    persist(updated);
+    persistGuest(updated);
   };
 
-  const clear = () => {
-    persist([]);
+  const clear = async () => {
+    if (hasAuth) {
+      const data = await clearCart();
+      setItems(Array.isArray(data?.items) ? data.items : []);
+      return;
+    }
+
+    persistGuest([]);
+  };
+
+  const mergeGuestCart = async () => {
+    const token = getAuthToken();
+    if (!token) return;
+    const guestItems = loadCart(guestStorageKey);
+    if (!guestItems.length) return;
+
+    const payloadItems = guestItems
+      .map((item) => ({
+        productId: item.productId,
+        quantity: item.quantity,
+      }))
+      .filter((item) => item.productId && item.quantity > 0);
+
+    if (!payloadItems.length) return;
+
+    const data = await mergeCartItems({ items: payloadItems });
+    localStorage.removeItem(guestStorageKey);
+    setItems(Array.isArray(data?.items) ? data.items : []);
   };
 
   const subtotal = items.reduce(
@@ -89,6 +156,7 @@ export const CartProvider = ({ children }) => {
       updateQuantity,
       removeItem,
       clear,
+      mergeGuestCart,
       subtotal,
       itemCount,
     }),

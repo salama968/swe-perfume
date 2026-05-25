@@ -1,6 +1,8 @@
 const Product = require('../models/Product');
 const Order = require('../models/Order');
+const User = require('../models/User');
 const { uploadImageBuffer } = require('../services/cloudinary');
+const { computeParentStatus } = require('../services/orderStatus');
 
 const createProduct = async (req, res, next) => {
   try {
@@ -108,10 +110,38 @@ const deleteProduct = async (req, res, next) => {
 
 const listVendorOrders = async (req, res, next) => {
   try {
-    const orders = await Order.find({ vendorId: req.user.id }).sort({
+    const orders = await Order.find({
+      'subOrders.vendorId': req.user.id,
+    }).sort({
       placedAt: -1,
     });
-    return res.json({ data: orders });
+
+    const customerIds = orders.map((order) => order.customerId.toString());
+    const customers = await User.find({ _id: { $in: customerIds } }).select(
+      'name',
+    );
+    const customerMap = new Map(
+      customers.map((customer) => [customer._id.toString(), customer.name]),
+    );
+
+    const vendorOrders = orders.flatMap((order) => {
+      const subOrders = (order.subOrders || []).filter(
+        (sub) => sub.vendorId.toString() === req.user.id,
+      );
+      return subOrders.map((sub) => ({
+        _id: sub._id,
+        parentOrderId: order._id,
+        customerId: order.customerId,
+        customerName:
+          customerMap.get(order.customerId.toString()) || 'Customer',
+        status: sub.status,
+        items: sub.items,
+        totalAmount: sub.totalAmount,
+        placedAt: order.placedAt,
+      }));
+    });
+
+    return res.json({ data: vendorOrders });
   } catch (err) {
     return next(err);
   }
@@ -120,18 +150,30 @@ const listVendorOrders = async (req, res, next) => {
 const updateOrderStatus = async (req, res, next) => {
   try {
     const order = await Order.findOne({
-      _id: req.params.id,
-      vendorId: req.user.id,
+      'subOrders._id': req.params.id,
+      'subOrders.vendorId': req.user.id,
     });
 
     if (!order) {
       return res.status(404).json({ error: 'Order not found' });
     }
 
-    order.status = req.body.status;
+    const subOrder = order.subOrders.find(
+      (sub) => sub._id.toString() === req.params.id,
+    );
+    if (!subOrder) {
+      return res.status(404).json({ error: 'Order not found' });
+    }
+
+    subOrder.status = req.body.status;
+    order.status = computeParentStatus(order.subOrders);
     await order.save();
 
-    return res.json(order);
+    return res.json({
+      _id: subOrder._id,
+      parentOrderId: order._id,
+      status: subOrder.status,
+    });
   } catch (err) {
     return next(err);
   }

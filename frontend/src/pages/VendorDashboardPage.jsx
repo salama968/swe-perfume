@@ -34,6 +34,7 @@ const VendorDashboardPage = () => {
   const [saving, setSaving] = useState(false);
   const [orderStatus, setOrderStatus] = useState({});
   const [orderSavingId, setOrderSavingId] = useState(null);
+  const [navOpen, setNavOpen] = useState(false);
 
   const statusOptions = useMemo(
     () => ['pending', 'processing', 'shipped', 'delivered'],
@@ -197,8 +198,12 @@ const VendorDashboardPage = () => {
 
   return (
     <div className="flex bg-background min-h-screen">
-      <SideNavBar active="vendor" />
-      <main className="flex-1 ml-64 p-12 max-w-[container-max] w-full">
+      <SideNavBar
+        active="vendor"
+        isOpen={navOpen}
+        onClose={() => setNavOpen(false)}
+      />
+      <main className="flex-1 ml-0 lg:ml-64 p-6 lg:p-12 max-w-[container-max] w-full">
         <header className="flex flex-col md:flex-row justify-between items-start md:items-end mb-stack-lg gap-6">
           <div>
             <h1 className="font-headline-xl text-headline-xl text-on-surface mb-2">
@@ -210,6 +215,13 @@ const VendorDashboardPage = () => {
             </p>
           </div>
           <div className="flex flex-wrap gap-3">
+            <button
+              type="button"
+              onClick={() => setNavOpen(true)}
+              className="lg:hidden w-full sm:w-auto border border-outline px-4 py-3 font-label-caps text-label-caps uppercase tracking-widest"
+            >
+              Menu
+            </button>
             <button
               type="button"
               onClick={handleOpenCreate}
@@ -428,10 +440,13 @@ const VendorDashboardPage = () => {
                     Order ID
                   </th>
                   <th className="py-4 px-4 font-label-caps text-on-surface-variant uppercase tracking-widest font-normal">
+                    Parent Order
+                  </th>
+                  <th className="py-4 px-4 font-label-caps text-on-surface-variant uppercase tracking-widest font-normal">
                     Customer
                   </th>
                   <th className="py-4 px-4 font-label-caps text-on-surface-variant uppercase tracking-widest font-normal">
-                    Status
+                    Sub-order Status
                   </th>
                   <th className="py-4 px-4 font-label-caps text-on-surface-variant uppercase tracking-widest font-normal text-right">
                     Action
@@ -446,6 +461,9 @@ const VendorDashboardPage = () => {
                   >
                     <td className="py-5 px-4 font-mono text-sm text-on-surface-variant">
                       {order.id || order._id}
+                    </td>
+                    <td className="py-5 px-4 font-mono text-xs text-on-surface-variant">
+                      {order.parentOrderId || '—'}
                     </td>
                     <td className="py-5 px-4">
                       {order.customerName || 'Customer'}
